@@ -121,6 +121,17 @@ func exportLibrary(username string) {
 		fmt.Println("Visiting", r.URL.String())
 	})
 
+	libraryCollector.OnHTML("div.pageSelectRow", func(pageSelectElement *colly.HTMLElement) {
+		pageSelectElement.ForEach(("a[href]"), func(_ int, pageLinkElement *colly.HTMLElement) {
+			pageLinkElement.ForEach("div.pageSelect", func(_ int, pageDiv *colly.HTMLElement) {
+				if pageDiv.Text == "Next" {
+					nextPageLink := pageLinkElement.Attr("href")
+					libraryCollector.Visit("https://www.albumoftheyear.org" + nextPageLink)
+				}
+			})
+		})
+	})
+
 	libraryCollector.OnScraped(func(r *colly.Response) {
 		fmt.Println("Finished", r.Request.URL)
 		for _, album := range libraryAlbums {
