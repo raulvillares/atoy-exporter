@@ -11,7 +11,7 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-type Album struct {
+type album struct {
 	ID          string
 	Artist      string
 	AlbumTitle  string
@@ -22,14 +22,14 @@ type Album struct {
 	Tags        []string
 }
 
-func newAlbum() *Album {
-	var a Album
+func newAlbum() *album {
+	var a album
 	a.Tags = make([]string, 0)
 	return &a
 }
 
-func (album Album) containsTag(tag string) bool {
-	for _, item := range album.Tags {
+func (a album) containsTag(tag string) bool {
+	for _, item := range a.Tags {
 		if item == tag {
 			return true
 		}
@@ -37,17 +37,17 @@ func (album Album) containsTag(tag string) bool {
 	return false
 }
 
-func visitAlbum(albumLink string) (*Album, bool) {
-	album := newAlbum()
+func visitAlbum(albumLink string) (*album, bool) {
+	visitedAlbum := newAlbum()
 	albumID := albumLink[30+7 : strings.Index(albumLink, "-")]
-	album.ID = albumID
+	visitedAlbum.ID = albumID
 
 	albumCollector := colly.NewCollector()
 
 	// ToDo This does not work, review Colly docs
 	albumAlreadyVisited, _ := albumCollector.HasVisited(albumLink)
 	if albumAlreadyVisited {
-		return album, false
+		return visitedAlbum, false
 	}
 
 	albumCollector.OnRequest(func(r *colly.Request) {
@@ -55,11 +55,11 @@ func visitAlbum(albumLink string) (*Album, bool) {
 	})
 
 	albumCollector.OnHTML("div.albumHeadline div.artist", func(artistElement *colly.HTMLElement) {
-		album.Artist = artistElement.Text
+		visitedAlbum.Artist = artistElement.Text
 	})
 
 	albumCollector.OnHTML("div.albumHeadline div.albumTitle", func(albumTitleElement *colly.HTMLElement) {
-		album.AlbumTitle = albumTitleElement.Text
+		visitedAlbum.AlbumTitle = albumTitleElement.Text
 	})
 
 	albumCollector.OnHTML("div.albumTopBox.info", func(albumInfoElement *colly.HTMLElement) {
@@ -68,27 +68,27 @@ func visitAlbum(albumLink string) (*Album, bool) {
 			if strings.HasSuffix(detailText, "Release Date") {
 				releaseDate := detailText[:strings.LastIndex(detailText, "Release Date")-4]
 				releaseYear := releaseDate[len(releaseDate)-4:]
-				album.ReleaseYear = releaseYear
+				visitedAlbum.ReleaseYear = releaseYear
 			}
 			if strings.HasSuffix(detailText, "Format") {
 				format := detailText[:strings.LastIndex(detailText, "Format")-4]
-				album.Format = format
+				visitedAlbum.Format = format
 			}
 
 			if strings.HasSuffix(detailText, "Label") {
 				label := detailText[:strings.LastIndex(detailText, "Label")-4]
-				album.Label = label
+				visitedAlbum.Label = label
 			}
 
 			if strings.HasSuffix(detailText, "Genres") {
 				genres := detailText[:strings.LastIndex(detailText, "Genres")-4]
-				album.Genres = genres
+				visitedAlbum.Genres = genres
 			}
 		})
 
 		albumInfoElement.ForEach("div.tag.strong", func(_ int, tagElement *colly.HTMLElement) {
-			if !album.containsTag(tagElement.Text) {
-				album.Tags = append(album.Tags, tagElement.Text)
+			if !visitedAlbum.containsTag(tagElement.Text) {
+				visitedAlbum.Tags = append(visitedAlbum.Tags, tagElement.Text)
 			}
 		})
 
@@ -100,12 +100,12 @@ func visitAlbum(albumLink string) (*Album, bool) {
 
 	albumCollector.Visit(albumLink)
 
-	return album, true
+	return visitedAlbum, true
 }
 
 func exportLibrary(username string, verbose bool) {
 	libraryCollector := colly.NewCollector()
-	libraryAlbums := make(map[string]*Album)
+	libraryAlbums := make(map[string]*album)
 
 	libraryCollector.OnHTML("div.albumBlock", func(albumBlock *colly.HTMLElement) {
 		albumBlock.ForEach(("a[href]"), func(_ int, linkElement *colly.HTMLElement) {
