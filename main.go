@@ -3,9 +3,11 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/gocolly/colly/v2"
 	"github.com/urfave/cli/v2"
@@ -110,6 +112,26 @@ func visitAlbum(albumLink string, verbose bool) (*album, bool) {
 	return visitedAlbum, true
 }
 
+func writeLibraryJsonFile(username string, libraryData map[string]*album) {
+	libraryAlbums := libraryMapToSlice(libraryData)
+	YYYYMMddmmss := "20060102150405"
+	timestamp := time.Now().Format(YYYYMMddmmss)
+	filename := fmt.Sprintf("atoy_%s_library_%s.json", username, timestamp)
+	libraryJSONData, _ := json.MarshalIndent(libraryAlbums, "", "\t")
+	err := ioutil.WriteFile(filename, libraryJSONData, 0644)
+	if err != nil {
+		fmt.Println(err)
+	}
+}
+
+func libraryMapToSlice(libraryMap map[string]*album) []*album {
+	librarySlice := make([]*album, 0, len(libraryMap))
+	for _, value := range libraryMap {
+		librarySlice = append(librarySlice, value)
+	}
+	return librarySlice
+}
+
 func exportLibrary(username string, verbose bool) {
 	fmt.Println("Exporting...")
 	libraryCollector := colly.NewCollector()
@@ -144,11 +166,8 @@ func exportLibrary(username string, verbose bool) {
 	})
 
 	libraryCollector.OnScraped(func(r *colly.Response) {
+		writeLibraryJsonFile(username, libraryAlbums)
 		fmt.Println("Done!")
-		for _, album := range libraryAlbums {
-			albumJSON, _ := json.MarshalIndent(album, "", "\t")
-			fmt.Println(string(albumJSON))
-		}
 	})
 
 	librayURI := fmt.Sprintf("https://www.albumoftheyear.org/user/%s/library/", username)
