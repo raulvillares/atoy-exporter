@@ -3,9 +3,12 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"log"
+	"os"
 	"strings"
 
 	"github.com/gocolly/colly/v2"
+	"github.com/urfave/cli/v2"
 )
 
 type Album struct {
@@ -100,7 +103,7 @@ func visitAlbum(albumLink string) (*Album, bool) {
 	return album, true
 }
 
-func exportLibrary(username string) {
+func exportLibrary(username string, verbose bool) {
 	libraryCollector := colly.NewCollector()
 	libraryAlbums := make(map[string]*Album)
 
@@ -145,5 +148,49 @@ func exportLibrary(username string) {
 }
 
 func main() {
-	exportLibrary("atoyexporter")
+	var dataToExport string
+	var userFromWichToExport string
+	var verbose bool
+
+	app := &cli.App{
+		Name:      "atoy-exporter",
+		Usage:     "simple web scraping utility to export library data from albumoftheyear.org ",
+		UsageText: "atoy-exporter --user myusername --data library",
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:        "user",
+				Aliases:     []string{"u"},
+				Required:    true,
+				Usage:       "user from which you want to export data",
+				Destination: &userFromWichToExport,
+			},
+			&cli.StringFlag{
+				Name:        "data",
+				Aliases:     []string{"d"},
+				Value:       "library",
+				Required:    false,
+				Usage:       "data to export (currently only 'library' accepted)",
+				Destination: &dataToExport,
+			},
+			&cli.BoolFlag{
+				Name:        "verbose",
+				Aliases:     []string{"v"},
+				Value:       false,
+				Required:    false,
+				Usage:       "show general debug messages",
+				Destination: &verbose,
+			},
+		},
+		Action: func(c *cli.Context) error {
+			if dataToExport == "library" {
+				exportLibrary(userFromWichToExport, verbose)
+			}
+			return nil
+		},
+	}
+
+	err := app.Run(os.Args)
+	if err != nil {
+		log.Fatal(err)
+	}
 }
