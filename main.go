@@ -37,7 +37,13 @@ func (a album) containsTag(tag string) bool {
 	return false
 }
 
-func visitAlbum(albumLink string) (*album, bool) {
+func printMessage(message string, verbose bool) {
+	if verbose {
+		fmt.Println(message)
+	}
+}
+
+func visitAlbum(albumLink string, verbose bool) (*album, bool) {
 	visitedAlbum := newAlbum()
 	albumID := albumLink[30+7 : strings.Index(albumLink, "-")]
 	visitedAlbum.ID = albumID
@@ -51,7 +57,7 @@ func visitAlbum(albumLink string) (*album, bool) {
 	}
 
 	albumCollector.OnRequest(func(r *colly.Request) {
-		fmt.Println("Visiting album", r.URL.String())
+		printMessage("Visiting album "+r.URL.String(), verbose)
 	})
 
 	albumCollector.OnHTML("div.albumHeadline div.artist", func(artistElement *colly.HTMLElement) {
@@ -95,7 +101,8 @@ func visitAlbum(albumLink string) (*album, bool) {
 	})
 
 	albumCollector.OnScraped(func(r *colly.Response) {
-		fmt.Println("Visited album", r.Request.URL)
+		printMessage("Visited "+r.Request.URL.String(), verbose)
+		printMessage("Data obtained: "+fmt.Sprintf("%#v", visitedAlbum), verbose)
 	})
 
 	albumCollector.Visit(albumLink)
@@ -104,6 +111,7 @@ func visitAlbum(albumLink string) (*album, bool) {
 }
 
 func exportLibrary(username string, verbose bool) {
+	fmt.Println("Exporting...")
 	libraryCollector := colly.NewCollector()
 	libraryAlbums := make(map[string]*album)
 
@@ -111,7 +119,7 @@ func exportLibrary(username string, verbose bool) {
 		albumBlock.ForEach(("a[href]"), func(_ int, linkElement *colly.HTMLElement) {
 			link := linkElement.Attr("href")
 			if strings.HasPrefix(link, "/album/") {
-				album, ok := visitAlbum("https://www.albumoftheyear.org" + link)
+				album, ok := visitAlbum("https://www.albumoftheyear.org"+link, verbose)
 				if ok {
 					libraryAlbums[album.ID] = album
 				}
@@ -121,7 +129,7 @@ func exportLibrary(username string, verbose bool) {
 	})
 
 	libraryCollector.OnRequest(func(r *colly.Request) {
-		fmt.Println("Visiting", r.URL.String())
+		printMessage("Visiting library "+r.URL.String(), verbose)
 	})
 
 	libraryCollector.OnHTML("div.pageSelectRow", func(pageSelectElement *colly.HTMLElement) {
@@ -136,7 +144,7 @@ func exportLibrary(username string, verbose bool) {
 	})
 
 	libraryCollector.OnScraped(func(r *colly.Response) {
-		fmt.Println("Finished", r.Request.URL)
+		fmt.Println("Done!")
 		for _, album := range libraryAlbums {
 			albumJSON, _ := json.MarshalIndent(album, "", "\t")
 			fmt.Println(string(albumJSON))
