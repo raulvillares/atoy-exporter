@@ -63,6 +63,7 @@ func visitAlbum(albumLink string, verbose bool) (*album, bool) {
 	})
 
 	albumCollector.OnHTML("div.albumHeadline div.artist", func(artistElement *colly.HTMLElement) {
+		printMessage("Artist: "+artistElement.Text, verbose)
 		visitedAlbum.Artist = artistElement.Text
 	})
 
@@ -112,7 +113,7 @@ func visitAlbum(albumLink string, verbose bool) (*album, bool) {
 	return visitedAlbum, true
 }
 
-func writeLibraryJsonFile(username string, libraryData map[string]*album) {
+func writeLibraryJSONFile(username string, libraryData map[string]*album) {
 	libraryAlbums := libraryMapToSlice(libraryData)
 	YYYYMMddmmss := "20060102150405"
 	timestamp := time.Now().Format(YYYYMMddmmss)
@@ -166,12 +167,14 @@ func exportLibrary(username string, verbose bool) {
 	})
 
 	libraryCollector.OnScraped(func(r *colly.Response) {
-		writeLibraryJsonFile(username, libraryAlbums)
-		fmt.Println("Done!")
+		printMessage("Visited library "+r.Request.URL.String(), verbose)
 	})
 
 	librayURI := fmt.Sprintf("https://www.albumoftheyear.org/user/%s/library/", username)
 	libraryCollector.Visit(librayURI)
+
+	writeLibraryJSONFile(username, libraryAlbums)
+	fmt.Println("Done!")
 }
 
 func main() {
