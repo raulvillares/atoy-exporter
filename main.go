@@ -22,17 +22,28 @@ type album struct {
 	Label       string
 	Genres      string
 	Tags        []string
+	MyTags      []string
 }
 
 func newAlbum() *album {
 	var a album
 	a.Tags = make([]string, 0)
+	a.MyTags = make([]string, 0)
 	return &a
 }
 
 func (a album) containsTag(tag string) bool {
 	for _, item := range a.Tags {
 		if item == tag {
+			return true
+		}
+	}
+	return false
+}
+
+func sliceOfStringsContainsElement(slice []string, element string) bool {
+	for _, e := range slice {
+		if e == element {
 			return true
 		}
 	}
@@ -133,7 +144,7 @@ func libraryMapToSlice(libraryMap map[string]*album) []*album {
 	return librarySlice
 }
 
-func exportLibrary(username string, verbose bool) {
+func exportLibrary(username string, verbose bool, myTags map[string][]string) {
 	fmt.Println("Exporting...")
 	libraryCollector := colly.NewCollector()
 	libraryAlbums := make(map[string]*album)
@@ -144,6 +155,7 @@ func exportLibrary(username string, verbose bool) {
 			if strings.HasPrefix(link, "/album/") {
 				album, ok := visitAlbum("https://www.albumoftheyear.org"+link, verbose)
 				if ok {
+					album.MyTags = myTags[album.ID]
 					libraryAlbums[album.ID] = album
 				}
 			}
@@ -177,10 +189,58 @@ func exportLibrary(username string, verbose bool) {
 	fmt.Println("Done!")
 }
 
+func loadMyTags(username string, verbose bool) map[string][]string {
+	printMessage("Loading my tags...", verbose)
+	myTags := make(map[string][]string)
+	myTagsCollector := colly.NewCollector()
+
+	myTagsCollector.OnHTML("div.tag", func(tagBlock *colly.HTMLElement) {
+		tagBlock.ForEach(("a[href]"), func(_ int, linkElement *colly.HTMLElement) {
+			myTagLink := linkElement.Attr("href")
+			myTag := linkElement.Text
+			albumIDs := getAlbumsIDForTag(username, myTag, myTagLink, verbose)
+			for _, albumID := range albumIDs {
+				albumMyTags, _ := myTags[albumID]
+				if !sliceOfStringsContainsElement(albumMyTags, myTag) {
+					albumMyTags = append(albumMyTags, myTag)
+					myTags[albumID] = albumMyTags
+				}
+			}
+		})
+
+	})
+
+	myTagsURI := fmt.Sprintf("https://www.albumoftheyear.org/user/%s/tags/?s=name", username)
+	myTagsCollector.Visit(myTagsURI)
+
+	return myTags
+}
+
+func getAlbumsIDForTag(username string, myTag string, myTagLink string, verbose bool) []string {
+	printMessage("Loading albums with myTag "+myTag, verbose)
+	albumIDs := make([]string, 0)
+	myTagsAlbumsCollector := colly.NewCollector()
+	myTagsAlbumsCollector.OnHTML("div.albumBlock", func(albumBlock *colly.HTMLElement) {
+		albumBlock.ForEach(("a[href]"), func(_ int, linkElement *colly.HTMLElement) {
+			albumLink := linkElement.Attr("href")
+			if strings.HasPrefix(albumLink, "/album/") {
+				albumID := albumLink[7:strings.Index(albumLink, "-")]
+				printMessage("Found album id "+albumID+" with myTag "+myTag, verbose)
+				albumIDs = append(albumIDs, albumID)
+			}
+		})
+	})
+
+	myTagsAlbumsCollector.Visit("https://www.albumoftheyear.org" + myTagLink)
+
+	return albumIDs
+}
+
 func main() {
 	var dataToExport string
 	var userFromWichToExport string
 	var verbose bool
+	var withMyTags bool
 
 	app := &cli.App{
 		Name:      "atoy-exporter",
@@ -210,10 +270,22 @@ func main() {
 				Usage:       "show general debug messages",
 				Destination: &verbose,
 			},
+			&cli.BoolFlag{
+				Name:        "with-my-tags",
+				Aliases:     []string{"t"},
+				Value:       true,
+				Required:    false,
+				Usage:       "add 'my tags' (user custom tags) to exported albums",
+				Destination: &withMyTags,
+			},
 		},
 		Action: func(c *cli.Context) error {
+			myTags := make(map[string][]string)
+			if withMyTags {
+				myTags = loadMyTags(userFromWichToExport, verbose)
+			}
 			if dataToExport == "library" {
-				exportLibrary(userFromWichToExport, verbose)
+				exportLibrary(userFromWichToExport, verbose, myTags)
 			}
 			return nil
 		},
